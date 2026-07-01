@@ -1,0 +1,9 @@
+# Virtual Environment
+wimby_env/
+__pycache__/
+
+# Local Database
+matches.db
+
+# Environment variables (if you add them later)
+.env
