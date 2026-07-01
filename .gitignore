@@ -1,6 +1,7 @@
 # Virtual Environment
 wimby_env/
 __pycache__/
+tml-data/
 
 # Local Database
 matches.db
