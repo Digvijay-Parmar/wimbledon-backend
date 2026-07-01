@@ -2,12 +2,10 @@ import pandas as pd
 import glob
 import os
 
-def load_tennis_dataset(base_dir=r"D:\Wimbledon\tml-data"):
-    """
-    Ingests and combines Main Tour, Challenger, and Qualification CSV datasets.
-    Maps player information from the ATP_database file safely.
-    """
-    print("Initializing Precise Data Ingestion Pipeline...")
+def load_tennis_dataset(base_dir=None):
+    if base_dir is None:
+        # This points to a 'tml-data' folder in the same directory as the script
+        base_dir = os.path.join(os.path.dirname(__file__), 'tml-data')
     
     # 1. Gather all Main Tour CSV files
     all_csvs = glob.glob(os.path.join(base_dir, "[0-9][0-9][0-9][0-9].csv"))

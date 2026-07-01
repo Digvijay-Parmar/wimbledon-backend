@@ -179,8 +179,8 @@ def launch_inference_console():
     print("="*60)
     print("🎾 ATP INFERENCE ENGINE - INITIALIZATION 🎾")
     print("="*60)
+    model_path = os.path.join(os.path.dirname(__file__), 'models', 'wimbledon_calibrated_engine.pkl')
     
-    model_path = r"D:\Wimbledon\models\wimbledon_calibrated_engine.pkl"
     if not os.path.exists(model_path):
         print(f"Error: Model not found at {model_path}. Please run train.py first.")
         return

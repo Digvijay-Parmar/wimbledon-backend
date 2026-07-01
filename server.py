@@ -29,7 +29,9 @@ with app.app_context():
 print("--- Initializing Engine ---")
 raw_df = load_tennis_dataset()
 name_map, row_map, elo_dict, surf_elo_dict, streak_dict, gs_streak_dict, stat_dict, active_dates = compile_live_atp_engine(raw_df)
-model = joblib.load(r"D:\Wimbledon\models\wimbledon_calibrated_engine.pkl")
+# In server.py, change the model path to:
+model_path = os.path.join(os.path.dirname(__file__), 'models', 'wimbledon_calibrated_engine.pkl')
+model = joblib.load(model_path)
 print("--- Engine Ready ---")
 
 # Database API Endpoints
