@@ -90,18 +90,31 @@ def predict():
 
     try:
         if p1_name not in name_map or p2_name not in name_map:
-            raise ValueError(f"Player not found: {p1_name} or {p2_name}")
+            print(f"Player missing from name_map: {p1_name} or {p2_name}")
+            return jsonify({"p1_prob": None, "p2_prob": None})
 
         id1 = name_map[p1_name]
         id2 = name_map[p2_name]
 
-        static1 = player_static[id1]
-        static2 = player_static[id2]
+        # --- SAFE FALLBACKS ---
+        # This prevents the 'B0JE' KeyError by supplying default averages for missing players
+        static1 = player_static.get(id1, {'age': 25.0, 'ht': 185.0, 'rank': 999, 'rank_points': 0.0})
+        static2 = player_static.get(id2, {'age': 25.0, 'ht': 185.0, 'rank': 999, 'rank_points': 0.0})
 
-        p1_serve_lost = (1.0 - stat_dict[id1]['svpt_won_ema']) + 0.001
-        p1_dom = stat_dict[id1]['revpt_won_ema'] / p1_serve_lost
-        p2_serve_lost = (1.0 - stat_dict[id2]['svpt_won_ema']) + 0.001
-        p2_dom = stat_dict[id2]['revpt_won_ema'] / p2_serve_lost
+        DEFAULT_STATS = {
+            'svpt_won_ema': 0.62, 'revpt_won_ema': 0.38, 'ace_rate_ema': 0.05,
+            'df_rate_ema': 0.03, 'first_in_ema': 0.60, 'first_won_ema': 0.70,
+            'second_won_ema': 0.50, 'bp_saved_ema': 0.60, 'bp_converted_ema': 0.40
+        }
+        
+        p1_stats = stat_dict.get(id1, DEFAULT_STATS)
+        p2_stats = stat_dict.get(id2, DEFAULT_STATS)
+
+        p1_serve_lost = (1.0 - p1_stats.get('svpt_won_ema', 0.62)) + 0.001
+        p1_dom = p1_stats.get('revpt_won_ema', 0.38) / p1_serve_lost
+        
+        p2_serve_lost = (1.0 - p2_stats.get('svpt_won_ema', 0.62)) + 0.001
+        p2_dom = p2_stats.get('revpt_won_ema', 0.38) / p2_serve_lost
 
         h2h = get_h2h_delta(p1_name, p2_name, 'Grass', 'G')
 
@@ -111,23 +124,23 @@ def predict():
             'delta_ht': static1['ht'] - static2['ht'],
             'delta_rank': static1['rank'] - static2['rank'],
             'delta_rank_points': static1['rank_points'] - static2['rank_points'],
-            'delta_elo_overall': elo_dict[id1] - elo_dict[id2],
-            'delta_elo_surface': surf_elo_dict[id1].get('Grass', 1500.0) - surf_elo_dict[id2].get('Grass', 1500.0),
+            'delta_elo_overall': elo_dict.get(id1, 1500.0) - elo_dict.get(id2, 1500.0),
+            'delta_elo_surface': surf_elo_dict.get(id1, {}).get('Grass', 1500.0) - surf_elo_dict.get(id2, {}).get('Grass', 1500.0),
             'delta_h2h_overall': h2h['delta_h2h_overall'],
             'delta_h2h_surface': h2h['delta_h2h_surface'],
             'delta_h2h_level': h2h['delta_h2h_level'],
-            'delta_streak_overall': streak_dict[id1] - streak_dict[id2],
-            'delta_streak_gslam': gs_streak_dict[id1] - gs_streak_dict[id2],
+            'delta_streak_overall': streak_dict.get(id1, 0) - streak_dict.get(id2, 0),
+            'delta_streak_gslam': gs_streak_dict.get(id1, 0) - gs_streak_dict.get(id2, 0),
             'delta_rest_days': 0, 'delta_tourney_fatigue': 0,
-            'delta_serve_win_pct': stat_dict[id1]['svpt_won_ema'] - stat_dict[id2]['svpt_won_ema'],
-            'delta_return_win_pct': stat_dict[id1]['revpt_won_ema'] - stat_dict[id2]['revpt_won_ema'],
-            'delta_ace_rate': stat_dict[id1]['ace_rate_ema'] - stat_dict[id2]['ace_rate_ema'],
-            'delta_df_rate': stat_dict[id1]['df_rate_ema'] - stat_dict[id2]['df_rate_ema'],
-            'delta_first_in': stat_dict[id1]['first_in_ema'] - stat_dict[id2]['first_in_ema'],
-            'delta_first_won': stat_dict[id1]['first_won_ema'] - stat_dict[id2]['first_won_ema'],
-            'delta_second_won': stat_dict[id1]['second_won_ema'] - stat_dict[id2]['second_won_ema'],
-            'delta_bp_save_pct': stat_dict[id1]['bp_saved_ema'] - stat_dict[id2]['bp_saved_ema'],
-            'delta_bp_conv_pct': stat_dict[id1]['bp_converted_ema'] - stat_dict[id2]['bp_converted_ema'],
+            'delta_serve_win_pct': p1_stats.get('svpt_won_ema', 0.62) - p2_stats.get('svpt_won_ema', 0.62),
+            'delta_return_win_pct': p1_stats.get('revpt_won_ema', 0.38) - p2_stats.get('revpt_won_ema', 0.38),
+            'delta_ace_rate': p1_stats.get('ace_rate_ema', 0.05) - p2_stats.get('ace_rate_ema', 0.05),
+            'delta_df_rate': p1_stats.get('df_rate_ema', 0.03) - p2_stats.get('df_rate_ema', 0.03),
+            'delta_first_in': p1_stats.get('first_in_ema', 0.60) - p2_stats.get('first_in_ema', 0.60),
+            'delta_first_won': p1_stats.get('first_won_ema', 0.70) - p2_stats.get('first_won_ema', 0.70),
+            'delta_second_won': p1_stats.get('second_won_ema', 0.50) - p2_stats.get('second_won_ema', 0.50),
+            'delta_bp_save_pct': p1_stats.get('bp_saved_ema', 0.60) - p2_stats.get('bp_saved_ema', 0.60),
+            'delta_bp_conv_pct': p1_stats.get('bp_converted_ema', 0.40) - p2_stats.get('bp_converted_ema', 0.40),
             'delta_dom_ratio': p1_dom - p2_dom,
             'p1_qualifier_upset_threat': 0, 'p1_is_seeded': 1 if static1['rank'] <= 32 else 0,
             'p2_qualifier_upset_threat': 0, 'p2_is_seeded': 1 if static2['rank'] <= 32 else 0,
@@ -150,13 +163,7 @@ def predict():
             "p2_prob": round(100 - float(prob_p1), 1)
         })
 
-    except KeyError as e:
-        # This will catch the exact dictionary lookup that is failing (e.g., surf_elo_dict)
-        print(f"❌ DATA MISMATCH KEYERROR: The ID {e} is missing from a dictionary during {p1_name} vs {p2_name}")
-        return jsonify({"p1_prob": None, "p2_prob": None})
-
     except Exception as e:
-        # This catches any other unexpected errors
         print(f"CRITICAL ERROR for {p1_name} vs {p2_name}: {e}")
         return jsonify({"p1_prob": None, "p2_prob": None})
 if __name__ == '__main__':
