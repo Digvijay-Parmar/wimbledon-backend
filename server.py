@@ -150,9 +150,14 @@ def predict():
             "p2_prob": round(100 - float(prob_p1), 1)
         })
 
-    except Exception as e:
-        print(f"CRITICAL ERROR for {p1_name} vs {p2_name}: {e}")
+    except KeyError as e:
+        # This will catch the exact dictionary lookup that is failing (e.g., surf_elo_dict)
+        print(f"❌ DATA MISMATCH KEYERROR: The ID {e} is missing from a dictionary during {p1_name} vs {p2_name}")
         return jsonify({"p1_prob": None, "p2_prob": None})
 
+    except Exception as e:
+        # This catches any other unexpected errors
+        print(f"CRITICAL ERROR for {p1_name} vs {p2_name}: {e}")
+        return jsonify({"p1_prob": None, "p2_prob": None})
 if __name__ == '__main__':
     app.run(port=5000, debug=False)
