@@ -8,9 +8,19 @@ import os
 app = Flask(__name__)
 CORS(app)
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'matches.db')
-db = SQLAlchemy(app)
 
+# Get the database URL from the environment variable if it exists.
+# If it doesn't exist (like on your local PC), it falls back to the local SQLite file.
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'matches.db'))
+
+# Fix for SQLAlchemy 1.4+: Some cloud providers use 'postgres://' 
+# but SQLAlchemy requires the strict 'postgresql://' prefix.
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 class MatchResult(db.Model):
     id = db.Column(db.String(50), primary_key=True)
     winner_id = db.Column(db.Integer, nullable=True)
