@@ -26,6 +26,13 @@ class MatchResult(db.Model):
     winner_id = db.Column(db.Integer, nullable=True)
     ibm_prob1 = db.Column(db.Float, nullable=True)
 
+# Single-row counter table for total site visits. We keep this as its own
+# tiny table (one row, fixed id) rather than a growing log table, since the
+# frontend only needs a running total, not per-visit records.
+class SiteVisit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    count = db.Column(db.Integer, nullable=False, default=0)
+
 with app.app_context():
     db.create_all()
 
@@ -81,6 +88,25 @@ def update_match():
     db.session.add(match)
     db.session.commit()
     return jsonify({"status": "success"})
+
+# Increments the single site-visit counter row (creating it on first call)
+# and returns the new total. The frontend fires this once per page load.
+@app.route('/api/visit-count', methods=['POST'])
+def visit_count():
+    row = SiteVisit.query.get(1)
+    if row is None:
+        row = SiteVisit(id=1, count=0)
+        db.session.add(row)
+    row.count += 1
+    db.session.commit()
+    return jsonify({"count": row.count})
+
+# Read-only lookup of the current total, in case the frontend (or anything
+# else) wants the count without incrementing it.
+@app.route('/api/visit-count', methods=['GET'])
+def get_visit_count():
+    row = SiteVisit.query.get(1)
+    return jsonify({"count": row.count if row else 0})
 
 @app.route('/api/predict', methods=['POST'])
 def predict():
