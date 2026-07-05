@@ -9,22 +9,24 @@ app = Flask(__name__)
 CORS(app)
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# Get the database URL from the environment variable if it exists.
-# If it doesn't exist (like on your local PC), it falls back to the local SQLite file.
+
+
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'matches.db'))
 
-# Fix for SQLAlchemy 1.4+: Some cloud providers use 'postgres://' 
-# but SQLAlchemy requires the strict 'postgresql://' prefix.
+
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+
 class MatchResult(db.Model):
     id = db.Column(db.String(50), primary_key=True)
     winner_id = db.Column(db.Integer, nullable=True)
     ibm_prob1 = db.Column(db.Float, nullable=True)
+
 
 # Single-row counter table for total site visits. We keep this as its own
 # tiny table (one row, fixed id) rather than a growing log table, since the
@@ -33,8 +35,20 @@ class SiteVisit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     count = db.Column(db.Integer, nullable=False, default=0)
 
+
 with app.app_context():
     db.create_all()
+
+
+# Health check route for Uptime Monitors.
+# Uptime services default to pinging the root URL ("/"). Since this app only
+# defines /api/... routes, hitting "/" previously returned Flask's default
+# 404, which made monitors think the backend was down. This route just
+# returns a plain 200 OK so uptime checks (and Render keep-alive pings) pass.
+@app.route('/', methods=['GET', 'HEAD'])
+def health_check():
+    return "Backend is awake!", 200
+
 
 # --- Engine Setup (Optimized for Low RAM) ---
 print("--- Loading Pre-computed Engine State ---")
@@ -55,27 +69,30 @@ player_static = state['player_static_profiles']
 h2h_matrix = state['h2h_matrix']
 print("--- Engine Ready ---")
 
+
 # Helpers for the new architecture
 def get_h2h_delta(p1, p2, surface, level):
     p1_wins_all = h2h_matrix.get((p1, p2), {}).get('overall', 0)
     p2_wins_all = h2h_matrix.get((p2, p1), {}).get('overall', 0)
-    
+
     p1_wins_surf = h2h_matrix.get((p1, p2), {}).get(surface, 0)
     p2_wins_surf = h2h_matrix.get((p2, p1), {}).get(surface, 0)
-    
+
     p1_wins_lvl = h2h_matrix.get((p1, p2), {}).get(level, 0)
     p2_wins_lvl = h2h_matrix.get((p2, p1), {}).get(level, 0)
-    
+
     return {
         'delta_h2h_overall': p1_wins_all - p2_wins_all,
         'delta_h2h_surface': p1_wins_surf - p2_wins_surf,
         'delta_h2h_level': p1_wins_lvl - p2_wins_lvl
     }
 
+
 @app.route('/api/get-all-matches', methods=['GET'])
 def get_all_matches():
     results = MatchResult.query.all()
     return jsonify({res.id: {"winner_id": res.winner_id, "ibm_prob1": res.ibm_prob1} for res in results})
+
 
 @app.route('/api/update-match', methods=['POST'])
 def update_match():
@@ -89,6 +106,7 @@ def update_match():
     db.session.commit()
     return jsonify({"status": "success"})
 
+
 # Increments the single site-visit counter row (creating it on first call)
 # and returns the new total. The frontend fires this once per page load.
 @app.route('/api/visit-count', methods=['POST'])
@@ -101,12 +119,14 @@ def visit_count():
     db.session.commit()
     return jsonify({"count": row.count})
 
+
 # Read-only lookup of the current total, in case the frontend (or anything
 # else) wants the count without incrementing it.
 @app.route('/api/visit-count', methods=['GET'])
 def get_visit_count():
     row = SiteVisit.query.get(1)
     return jsonify({"count": row.count if row else 0})
+
 
 @app.route('/api/predict', methods=['POST'])
 def predict():
@@ -123,7 +143,7 @@ def predict():
         id2 = name_map[p2_name]
 
         # --- SAFE FALLBACKS ---
-        # This prevents the 'B0JE' KeyError by supplying default averages for missing players
+        # This prevents the player not found KeyError by supplying default averages for missing players
         static1 = player_static.get(id1, {'age': 25.0, 'ht': 185.0, 'rank': 999, 'rank_points': 0.0})
         static2 = player_static.get(id2, {'age': 25.0, 'ht': 185.0, 'rank': 999, 'rank_points': 0.0})
 
@@ -132,13 +152,13 @@ def predict():
             'df_rate_ema': 0.03, 'first_in_ema': 0.60, 'first_won_ema': 0.70,
             'second_won_ema': 0.50, 'bp_saved_ema': 0.60, 'bp_converted_ema': 0.40
         }
-        
+
         p1_stats = stat_dict.get(id1, DEFAULT_STATS)
         p2_stats = stat_dict.get(id2, DEFAULT_STATS)
 
         p1_serve_lost = (1.0 - p1_stats.get('svpt_won_ema', 0.62)) + 0.001
         p1_dom = p1_stats.get('revpt_won_ema', 0.38) / p1_serve_lost
-        
+
         p2_serve_lost = (1.0 - p2_stats.get('svpt_won_ema', 0.62)) + 0.001
         p2_dom = p2_stats.get('revpt_won_ema', 0.38) / p2_serve_lost
 
@@ -192,5 +212,7 @@ def predict():
     except Exception as e:
         print(f"CRITICAL ERROR for {p1_name} vs {p2_name}: {e}")
         return jsonify({"p1_prob": None, "p2_prob": None})
+
+
 if __name__ == '__main__':
     app.run(port=5000, debug=False)
